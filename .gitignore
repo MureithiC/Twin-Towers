@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+__pycache__/
+*.so
+
+# Virtual environment directory
+venv/
+env/
+
+# Flask instance folder (for config files)
+instance/
+
+# Logs
+*.log
+logs/
+
+# Environment variables file
+.env
+
+# Database
+*.sqlite3
+*.db
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# macOS files
+.DS_Store
+
+# IDE specific files
+.vscode/
+.idea/
