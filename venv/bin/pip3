@@ -1,4 +1,4 @@
-#!/Users/cymureithi/Development/code/Twin-Towers/venv/bin/python3.12
+#!/home/khajira/Moringa/Development/Phase-5/Twin-Towers/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
