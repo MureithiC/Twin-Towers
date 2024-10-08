@@ -1,5 +1,6 @@
 from app import db
 from faker import Faker
+import bcrypt
 
 fake = Faker()
 
@@ -10,6 +11,7 @@ class Member(db.Model):
     phone = db.Column(db.String(20), unique=True, nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     role = db.Column(db.String(20), nullable=False, default="member")
+    password_hash = db.Column(db.String(128), nullable=False)
 
     def to_dict(self):
         return {
@@ -20,6 +22,14 @@ class Member(db.Model):
             "role": self.role
         }
 
+    # Hash and set the password
+    def set_password(self, password):
+        self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+    # Check if the password matches the hash
+    def check_password(self, password):
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+    
     @classmethod
     def generate_fake_data(cls):
         """Generates a single fake Member instance."""

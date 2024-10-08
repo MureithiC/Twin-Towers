@@ -30,6 +30,9 @@ class MemberService:
                 email=data['email'],
                 role=data.get('role', 'member')
             )
+
+            member.set_password(data['password'])
+            
             MemberRepository.create_member(member)
             return member.to_dict(), 201
         except Exception as e:

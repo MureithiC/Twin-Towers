@@ -15,7 +15,7 @@ class AuthResource(Resource):
 
         member = Member.query.filter_by(email=email).first()
 
-        if member and member.role == 'admin' and password == "deuces12345": 
+        if member and member.role == 'admin' and member.check_password(password):
             access_token = create_access_token(identity={"id": member.id, "role": member.role})
             return {"access_token": access_token}, 200
 
