@@ -1,0 +1,25 @@
+# Ignore Python virtual environment
+venv/
+
+# Ignore database files
+members.db
+
+# Ignore migration files
+migrations/
+
+# Ignore instance folder
+instance/
+
+# Ignore logs
+*.log
+
+# Ignore environment variables
+*.env
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+# Ignore Python cache
+__pycache__/
+*.pyc
+
