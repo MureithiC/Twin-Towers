@@ -53,3 +53,42 @@ class MemberService:
         
         MemberRepository.update_member()
         return member.to_dict(), 200
+
+    @staticmethod
+    def assign_role(member_id, new_role):
+        member = MemberRepository.get_member_by_id(member_id)
+        if not member:
+            return {"error": "Member not found"}, 404
+        
+        if new_role not in Member.get_all_roles():
+            return {"error": "Invalid role"}, 400
+        
+        member.role = new_role
+        MemberRepository.update_member()
+        return {"message": "Role assigned successfully"}, 200
+
+    @staticmethod
+    def get_available_roles():
+        return {"roles": Member.get_all_roles()}, 200
+
+    @staticmethod
+    def get_members_by_role(role):
+        if role not in Member.get_all_roles():
+            return {"error": "Invalid role"}, 400
+        
+        members = MemberRepository.get_members_by_role(role)
+        return {"members": [member.to_dict() for member in members]}, 200
+
+    @staticmethod
+    def get_member_role(member_id):
+        member = MemberRepository.get_member_by_id(member_id)
+        if not member:
+            return {"error": "Member not found"}, 404
+        return {"role": member.role}, 200
+
+@staticmethod
+def authenticate_admin(email, password):
+    member = MemberRepository.find_by_email(email)
+    if member and member.role == 'admin' and member.check_password(password):
+        return member
+    return None
