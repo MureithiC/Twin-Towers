@@ -22,20 +22,41 @@ class Member(db.Model):
             "role": self.role
         }
 
-    # Hash and set the password
     def set_password(self, password):
         self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-    # Check if the password matches the hash
     def check_password(self, password):
         return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
     
     @classmethod
     def generate_fake_data(cls):
-        """Generates a single fake Member instance."""
         return cls(
             name=fake.name(),
             phone=fake.phone_number(),
             email=fake.email(),
             role=fake.random_element(elements=("member", "admin"))
         )
+
+    @classmethod
+    def get_all_roles(cls):
+        return ["member", "admin"]  # Add more roles as needed
+
+    def assign_role(self, new_role):
+        if new_role in self.get_all_roles():
+            self.role = new_role
+            db.session.commit()
+            return True
+        return False
+
+    @classmethod
+    def get_members_by_role(cls, role):
+        return cls.query.filter_by(role=role).all()
+
+    @classmethod
+    def change_role(cls, member_id, new_role):
+        member = cls.query.get(member_id)
+        if member and new_role in cls.get_all_roles():
+            member.role = new_role
+            db.session.commit()
+            return True
+        return False
