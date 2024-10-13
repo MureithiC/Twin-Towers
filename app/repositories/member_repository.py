@@ -22,3 +22,8 @@ class MemberRepository:
     @staticmethod
     def find_by_email_or_phone(email, phone):
         return Member.query.filter((Member.email == email) | (Member.phone == phone)).first()
+
+    @staticmethod
+    def get_all_inactive_members():
+        # Retrieve members where is_active is False
+        return Member.query.filter_by(is_active=False).all()   

@@ -64,6 +64,19 @@ class MemberResource(Resource):
             db.session.rollback()
             return {"error": "An error occurred while updating the member", "details": str(e)}, 500
 
+class InactiveMemberResource(Resource):
+    @jwt_required()
+    def get(self):
+        """Get all inactive members (admin-only)."""
+        current_user = get_jwt_identity()
+
+        if current_user['role'] != 'admin':
+            return jsonify({"error": "Admin access required"}), 403
+
+        # Call the service layer to fetch inactive members
+        inactive_members, status_code = MemberService.get_inactive_members()
+        return inactive_members, status_code
 
 member_api.add_resource(MemberListResource, '/members')
 member_api.add_resource(MemberResource, '/members/<int:id>')
+member_api.add_resource(InactiveMemberResource, '/members/inactive') 
