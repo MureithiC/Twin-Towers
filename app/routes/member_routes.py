@@ -55,6 +55,13 @@ def get_members_by_role(role):
 def get_member_role(member_id):
     return MemberService.get_member_role(member_id)
 
+@member_bp.route('/inactive', methods=['GET'])
+@authenticate_admin()
+def get_inactive_members():
+    """Retrieve inactive members (is_active=False)."""
+    inactive_members, status_code = MemberService.get_inactive_members()
+    return jsonify(inactive_members), status_code
+
 from flask import request, jsonify
 from flask_jwt_extended import create_access_token
 

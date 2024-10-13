@@ -12,14 +12,16 @@ class Member(db.Model):
     email = db.Column(db.String(100), unique=True, nullable=False)
     role = db.Column(db.String(20), nullable=False, default="member")
     password_hash = db.Column(db.String(128), nullable=False)
-
+    is_active = db.Column(db.Boolean, default=True)
+    
     def to_dict(self):
         return {
             "id": self.id,
             "name": self.name,
             "phone": self.phone,
             "email": self.email,
-            "role": self.role
+            "role": self.role,
+            "is_active": self.is_active 
         }
 
     def set_password(self, password):

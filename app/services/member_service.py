@@ -86,6 +86,15 @@ class MemberService:
             return {"error": "Member not found"}, 404
         return {"role": member.role}, 200
 
+    
+    @staticmethod
+    def get_inactive_members():
+        # Get the list of inactive members from the repository
+        inactive_members = MemberRepository.get_all_inactive_members()
+        # Convert each member object to a dictionary for JSON response
+        return [member.to_dict() for member in inactive_members], 200
+    
+
 @staticmethod
 def authenticate_admin(email, password):
     member = MemberRepository.find_by_email(email)
