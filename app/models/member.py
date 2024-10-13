@@ -62,3 +62,11 @@ class Member(db.Model):
             db.session.commit()
             return True
         return False
+    
+    def soft_delete(self):
+        """Soft delete the member by setting is_active to False"""
+        if not self.is_active:
+            return {'error': 'Member is already inactive.'}, 400
+        self.is_active = False
+        db.session.commit()
+        return {'message': f'Member {self.id} has been soft deleted successfully'}, 200
