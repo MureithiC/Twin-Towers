@@ -1,3 +1,4 @@
+from app import db
 from app.repositories.member_repository import MemberRepository
 from app.models.member import Member
 
@@ -9,7 +10,7 @@ class MemberService:
     @staticmethod
     def get_member_by_id(id):
         member = MemberRepository.get_member_by_id(id)
-        if not member:
+        if not member or not member.is_active:
             return {"error": "Member not found"}, 404
         return member.to_dict(), 200
 
@@ -53,6 +54,21 @@ class MemberService:
         
         MemberRepository.update_member()
         return member.to_dict(), 200
+
+    @staticmethod
+    def soft_delete_member(id):
+        """Soft delete a member (mark them as inactive)."""
+        member = MemberRepository.get_member_by_id(id)
+        if not member or not member.is_active:
+            return {"error": "Member not found or already inactive"}, 404
+
+        try:
+            member.is_active = False
+            db.session.commit()
+            return {"message": f"Member {id} has been soft deleted"}, 200
+        except Exception as e:
+            db.session.rollback()
+            return {"error": "Error occurred during soft delete", "details": str(e)}, 500
 
     @staticmethod
     def assign_role(member_id, new_role):

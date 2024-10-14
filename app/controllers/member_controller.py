@@ -5,18 +5,20 @@ from app.services.member_service import MemberService
 from app.models.member import Member
 from app import db
 
+
 member_bp = Blueprint('member_bp', __name__)  
-member_api = Api(member_bp)  
+member_api = Api(member_bp)
+
 
 class MemberListResource(Resource):
     def get(self):
-        """Get all members."""
-        members = MemberService.get_all_members()
+        """Get all active members."""
+        members = MemberService.get_all_members()  # Fetch only active members by default
         return [member.to_dict() for member in members], 200
 
     @jwt_required()
     def post(self):
-        """Create a new member."""
+        """Create a new member (admin-only)."""
         current_user = get_jwt_identity()
         if current_user['role'] != 'admin':
             return jsonify({"error": "Admin access required"}), 403
@@ -64,6 +66,17 @@ class MemberResource(Resource):
             db.session.rollback()
             return {"error": "An error occurred while updating the member", "details": str(e)}, 500
 
+    @jwt_required()
+    def delete(self, id):
+        """Soft delete a member (admin-only)."""
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'admin':
+            return jsonify({"error": "Admin access required"}), 403
+
+        
+        return MemberService.soft_delete_member(id)
+
+
 class InactiveMemberResource(Resource):
     @jwt_required()
     def get(self):
@@ -73,10 +86,10 @@ class InactiveMemberResource(Resource):
         if current_user['role'] != 'admin':
             return jsonify({"error": "Admin access required"}), 403
 
-        # Call the service layer to fetch inactive members
+        
         inactive_members, status_code = MemberService.get_inactive_members()
         return inactive_members, status_code
 
-member_api.add_resource(MemberListResource, '/members')
-member_api.add_resource(MemberResource, '/members/<int:id>')
-member_api.add_resource(InactiveMemberResource, '/members/inactive') 
+member_api.add_resource(MemberListResource, '/members')  # List and Create members
+member_api.add_resource(MemberResource, '/members/<int:id>')  # Get, Update, Delete (soft) members
+member_api.add_resource(InactiveMemberResource, '/members/inactive')  # List inactive members
