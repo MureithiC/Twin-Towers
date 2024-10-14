@@ -5,22 +5,31 @@ import bcrypt
 fake = Faker()
 
 class Member(db.Model):
+    """Represents a member in the system, including user-related attributes."""
     __tablename__ = 'member'
+    
     id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20), unique=True, nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     role = db.Column(db.String(20), nullable=False, default="member")
     password_hash = db.Column(db.String(128), nullable=False)
+    status = db.Column(db.String(50))
     is_active = db.Column(db.Boolean, default=True)
     
+    def __repr__(self):
+        return f'<Member {self.username}>'
+
     def to_dict(self):
         return {
             "id": self.id,
+            "username": self.username,
             "name": self.name,
             "phone": self.phone,
             "email": self.email,
             "role": self.role,
+            "status": self.status,
             "is_active": self.is_active 
         }
 
@@ -33,15 +42,17 @@ class Member(db.Model):
     @classmethod
     def generate_fake_data(cls):
         return cls(
+            username=fake.user_name(),
             name=fake.name(),
             phone=fake.phone_number(),
             email=fake.email(),
-            role=fake.random_element(elements=("member", "admin"))
+            role=fake.random_element(elements=("member", "admin")),
+            password_hash=fake.password()
         )
 
     @classmethod
     def get_all_roles(cls):
-        return ["member", "admin"]  # Add more roles as needed
+        return ["member", "admin"] 
 
     def assign_role(self, new_role):
         if new_role in self.get_all_roles():
@@ -62,11 +73,3 @@ class Member(db.Model):
             db.session.commit()
             return True
         return False
-    
-    def soft_delete(self):
-        """Soft delete the member by setting is_active to False"""
-        if not self.is_active:
-            return {'error': 'Member is already inactive.'}, 400
-        self.is_active = False
-        db.session.commit()
-        return {'message': f'Member {self.id} has been soft deleted successfully'}, 200
