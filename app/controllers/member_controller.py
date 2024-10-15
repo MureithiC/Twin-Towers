@@ -81,7 +81,12 @@ class MemberResource(Resource):
         member.name = data.get('name', member.name)
         member.phone = data.get('phone', member.phone)
         member.email = data.get('email', member.email)
-        member.role = data.get('role', member.role)
+
+        # Only allow role changes if the current user is an admin
+        if 'role' in data:
+            if current_user['role'] != 'admin':
+                return {"error": "Admin access required to change role"}, 403
+            member.role = data.get('role', member.role)
 
         try:
             db.session.commit()
@@ -114,6 +119,7 @@ class UpdateMember(Resource):
 
         data = request.get_json()
 
+        # Prevent users from updating their own role or status
         if 'role' in data or 'status' in data:
             return {"error": "You cannot update your own role or status."}, 403
 
