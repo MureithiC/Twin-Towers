@@ -29,7 +29,7 @@ class MemberService:
                 name=data['name'],
                 phone=data['phone'],
                 email=data['email'],
-                role=data.get('role', 'member')
+                role=data.get('role', 'member')  # Default role is 'member'
             )
 
             member.set_password(data['password'])
@@ -40,7 +40,16 @@ class MemberService:
             return {"error": str(e)}, 500
 
     @staticmethod
-    def update_member(id, data):
+    def update_member(id, data, admin_email=None, admin_password=None):
+        # Check if the requesting user is an admin before allowing role changes
+        if 'role' in data:
+            if not admin_email or not admin_password:
+                return {"error": "Admin credentials are required to change roles"}, 403
+            
+            admin_member = MemberService.authenticate_admin(admin_email, admin_password)
+            if not admin_member:
+                return {"error": "Unauthorized access"}, 403
+
         member = MemberRepository.get_member_by_id(id)
         if not member:
             return {"error": "Member not found"}, 404
@@ -52,6 +61,13 @@ class MemberService:
         member.phone = data.get('phone', member.phone)
         member.email = data.get('email', member.email)
         
+        # Update role if provided and admin is authenticated
+        if 'role' in data:
+            if data['role'] in Member.get_all_roles():
+                member.role = data['role']
+            else:
+                return {"error": "Invalid role"}, 400
+
         MemberRepository.update_member()
         return member.to_dict(), 200
 
@@ -71,14 +87,22 @@ class MemberService:
             return {"error": "Error occurred during soft delete", "details": str(e)}, 500
 
     @staticmethod
-    def assign_role(member_id, new_role):
+    def assign_role(member_id, new_role, admin_email, admin_password):
+        """Admin assigns a role to a member, secured by admin authentication."""
+        # Authenticate admin
+        admin_member = MemberService.authenticate_admin(admin_email, admin_password)
+        if not admin_member:
+            return {"error": "Unauthorized access"}, 403
+        
         member = MemberRepository.get_member_by_id(member_id)
         if not member:
             return {"error": "Member not found"}, 404
         
+        # Check if the new role is valid
         if new_role not in Member.get_all_roles():
             return {"error": "Invalid role"}, 400
         
+        # Assign the new role
         member.role = new_role
         MemberRepository.update_member()
         return {"message": "Role assigned successfully"}, 200
@@ -102,18 +126,17 @@ class MemberService:
             return {"error": "Member not found"}, 404
         return {"role": member.role}, 200
 
-    
     @staticmethod
     def get_inactive_members():
         # Get the list of inactive members from the repository
         inactive_members = MemberRepository.get_all_inactive_members()
         # Convert each member object to a dictionary for JSON response
         return [member.to_dict() for member in inactive_members], 200
-    
 
-@staticmethod
-def authenticate_admin(email, password):
-    member = MemberRepository.find_by_email(email)
-    if member and member.role == 'admin' and member.check_password(password):
-        return member
-    return None
+    @staticmethod
+    def authenticate_admin(email, password):
+        """Authenticate admin for sensitive operations."""
+        member = MemberRepository.find_by_email(email)
+        if member and member.role == 'admin' and member.check_password(password):
+            return member
+        return None
