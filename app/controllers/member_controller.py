@@ -1,141 +1,194 @@
-from flask import Blueprint, request, jsonify, session
+from flask import request, Blueprint
 from flask_restful import Resource, Api
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.services.member_service import MemberService
 from app.models.member import Member
+from app.repositories.member_repository import MemberRepository
+from app.services.member_service import MemberService
+from werkzeug.exceptions import BadRequest
 from app import db
 
-
-member_bp = Blueprint('member_bp', __name__)  
-member_api = Api(member_bp)  
-
-class Register(Resource):
-    def post(self):
-        data = request.get_json()
-        username = data.get('username')
-
-        if Member.query.filter_by(username=username).first():
-            return {"error": "Member already exists."}, 400
-
-        new_member = Member(username=username)
-        db.session.add(new_member)
-        db.session.commit()
-        return {"message": "Member registered successfully."}, 201
-
-class Login(Resource):
-    def post(self):
-        data = request.get_json()
-
-        if data is None:
-            return {"error": "No JSON data provided."}, 400
-
-        username = data.get('username')
-        member = Member.query.filter_by(username=username).first()
-
-        if member:
-            session['member_id'] = member.id
-            return {"message": "Logged in successfully."}, 200
-        
-        return {"error": "Invalid credentials."}, 401
+member_bp = Blueprint('member_bp', __name__)
+member_api = Api(member_bp)
 
 class MemberListResource(Resource):
     @jwt_required()
     def get(self):
-        members = MemberService.get_all_members()
-        return [member.to_dict() for member in members], 200
-
-    @jwt_required()
-    def post(self):
+        """ List all active members for Admins and Supervisors """
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
-            return jsonify({"error": "Admin access required"}), 403
+        
+        if current_user['role'] not in ['admin', 'supervisor']:
+            return {"error": "Unauthorized"}, 403
 
-        data = request.get_json()
-        return MemberService.create_member(data)
+        members = Member.query.filter_by(is_active=True).all()
+        return [member.to_dict() for member in members], 200
 
 class MemberResource(Resource):
     @jwt_required()
     def get(self, id):
-        return MemberService.get_member_by_id(id)
+        """ Get a single member's details by ID """
+        current_user = get_jwt_identity()
+        member = Member.query.get_or_404(id)
+
+        if current_user['role'] not in ['admin', 'supervisor']:
+            return {"error": "Unauthorized"}, 403
+
+        # Allow members to only view their own details if role is supervisor or member
+        if current_user['role'] == 'supervisor' and current_user['id'] != id:
+            return {"error": "Unauthorized"}, 403
+
+        return member.to_dict(), 200
 
     @jwt_required()
     def put(self, id):
+        """ Update member's information (name, phone, email) """
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
-            return jsonify({"error": "Admin access required"}), 403
+        member = Member.query.get_or_404(id)
+        if current_user['role'] not in ['admin', 'supervisor']:
+            return {"error": "Unauthorized"}, 403
 
-        member = Member.query.get(id)
-        if not member:
-            return {"error": "Member not found"}, 404
+        if current_user['role'] == 'supervisor':
+            # If the user is a supervisor, we prevent role or password changes.
+            # Sensitive information should be handled by admins only.
+            data = request.get_json()
+            if 'role' in data or 'password' in data:
+                return {"error": "Supervisors cannot change sensitive information (role/password)"}, 403
+
+
 
         data = request.get_json()
-        if not data:
-            return {"error": "Invalid request, no data provided"}, 400
+        name = data.get('name')
+        phone = data.get('phone')
+        email = data.get('email')
 
-        if 'phone' in data and Member.query.filter(Member.phone == data['phone'], Member.id != member.id).first():
-            return {"error": "Phone number already exists"}, 400
+        if name:
+            member.name = name
+        if phone:
+            if Member.query.filter_by(phone=phone).first():
+                return {"error": "Phone number already exists"}, 400
+            member.phone = phone
+        if email:
+            if Member.query.filter_by(email=email).first():
+                return {"error": "Email already exists"}, 400
+            member.email = email
 
-        if 'email' in data and Member.query.filter(Member.email == data['email'], Member.id != member.id).first():
-            return {"error": "Email address already exists"}, 400
-
-        member.name = data.get('name', member.name)
-        member.phone = data.get('phone', member.phone)
-        member.email = data.get('email', member.email)
-
-        # Only allow role changes if the current user is an admin
-        if 'role' in data:
-            if current_user['role'] != 'admin':
-                return {"error": "Admin access required to change role"}, 403
-            member.role = data.get('role', member.role)
-
-        try:
-            db.session.commit()
-            return member.to_dict(), 200
-        except Exception as e:
-            db.session.rollback()
-            return {"error": "An error occurred while updating the member", "details": str(e)}, 500
+        db.session.commit()
+        return member.to_dict(), 200
 
 class InactiveMemberResource(Resource):
     @jwt_required()
     def get(self):
+        """ Fetch all inactive members for Admins only """
         current_user = get_jwt_identity()
+
         if current_user['role'] != 'admin':
-            return jsonify({"error": "Admin access required"}), 403
+            return {"error": "Unauthorized"}, 403
 
-        inactive_members, status_code = MemberService.get_inactive_members()
-        return inactive_members, status_code
+        inactive_members = Member.query.filter_by(is_active=False).all()
+        return [member.to_dict() for member in inactive_members], 200
 
-class UpdateMember(Resource):
+class RestoreMemberResource(Resource):
     @jwt_required()
-    def put(self, member_id):
-        current_member_id = get_jwt_identity()['id']
-        
-        if current_member_id is None:
-            return {"error": "Member not logged in."}, 401
+    def post(self, id):
+        """ Restore a soft-deleted member for Admins only """
+        current_user = get_jwt_identity()
 
-        member = db.session.get(Member, member_id)
-        if not member:
-            return {"error": "Member not found."}, 404
+        if current_user['role'] != 'admin':
+            return {"error": "Unauthorized"}, 403
+
+        member = Member.query.get_or_404(id)
+
+        # Check if the member is already active
+        if member.is_active:
+            return {"error": "Member is already active"}, 400
+
+        # Restore the member by setting is_active to True
+        member.is_active = True
+        db.session.commit()
+        return {"message": "Member restored successfully"}, 200
+
+class ChangeRoleResource(Resource):
+    @jwt_required()
+    def put(self, id):
+        """ Change a member's role for Admins only """
+        current_user = get_jwt_identity()
+
+        if current_user['role'] != 'admin':
+            return {"error": "Unauthorized"}, 403
+
+        member = Member.query.get_or_404(id)
+        data = request.get_json()
+        new_role = data.get('role')
+
+        if new_role not in Member.get_all_roles():
+            return {"error": "Invalid role"}, 400
+
+        # Prevent self-role change
+        if current_user['id'] == id:
+            return {"error": "You cannot change your own role"}, 403
+
+        # Change role
+        if member.assign_role(new_role):
+            return {"message": "Role updated successfully"}, 200
+        else:
+            return {"error": "Failed to update role"}, 400
+class SoftDeleteMemberResource(Resource):
+    @jwt_required()
+    def delete(self, id):
+        """ Soft delete a member (set is_active to False) """
+        current_user = get_jwt_identity()
+
+        if current_user['role'] != 'admin':
+            return {"error": "Unauthorized"}, 403
+
+        member = Member.query.get_or_404(id)
+
+        # If the member is already inactive, return an error
+        if not member.is_active:
+            return {"error": "Member is already soft-deleted"}, 400
+
+        # Soft delete the member by setting is_active to False
+        member.is_active = False
+        db.session.commit()
+        return {"message": "Member soft-deleted successfully"}, 200
+
+
+class CreateMemberResource(Resource):
+    @jwt_required()
+    def post(self):
+        """ Create a new member for Admins only """
+        current_user = get_jwt_identity()
+
+        if current_user['role'] != 'admin':
+            return {"error": "Unauthorized"}, 403
 
         data = request.get_json()
+        name = data.get('name')
+        phone = data.get('phone')
+        email = data.get('email')
+        password = data.get('password')
+        role = data.get('role', 'member')  # Default role is 'member'
 
-        # Prevent users from updating their own role or status
-        if 'role' in data or 'status' in data:
-            return {"error": "You cannot update your own role or status."}, 403
+        # Validate uniqueness of email and phone
+        if Member.query.filter_by(phone=phone).first():
+            return {"error": "Phone number already exists"}, 400
+        if Member.query.filter_by(email=email).first():
+            return {"error": "Email already exists"}, 400
 
-        if 'username' in data:
-            new_username = data['username']
-            existing_member = Member.query.filter_by(username=new_username).first()
-            if existing_member and existing_member.id != member.id:
-                return {"error": "Username already exists."}, 400
-            member.username = new_username
-
+        # Create a new member
+        new_member = Member(name=name, phone=phone, email=email, role=role)
+        new_member.set_password(password)
+        db.session.add(new_member)
         db.session.commit()
-        return {"message": "Member updated successfully."}, 200
 
-member_api.add_resource(Register, '/register')
-member_api.add_resource(Login, '/login')
-member_api.add_resource(MemberListResource, '/members')
-member_api.add_resource(MemberResource, '/members/<int:id>')
-member_api.add_resource(InactiveMemberResource, '/members/inactive')
-member_api.add_resource(UpdateMember, '/members/<int:member_id>')
+        return new_member.to_dict(), 201
+
+
+
+# Add resources to the API
+member_api.add_resource(MemberListResource, '/')
+member_api.add_resource(MemberResource, '/<int:id>')
+member_api.add_resource(InactiveMemberResource, '/inactive')
+member_api.add_resource(RestoreMemberResource, '/<int:id>/restore')
+member_api.add_resource(ChangeRoleResource, '/<int:id>/role')
+member_api.add_resource(CreateMemberResource, '/')
+member_api.add_resource(SoftDeleteMemberResource, '/<int:id>/delete')

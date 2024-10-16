@@ -9,17 +9,20 @@ auth_api = Api(auth_bp)
 class AuthResource(Resource):
     def post(self):
         data = request.get_json()
-
         email = data.get('email')
         password = data.get('password')
 
+        # Fetch member by email
         member = Member.query.filter_by(email=email).first()
 
-        if member and member.role == 'admin' and member.check_password(password):
-            access_token = create_access_token(identity={"id": member.id, "role": member.role})
-            return {"access_token": access_token}, 200
+        if member and member.check_password(password):
+            # Allow both Admin and Supervisor roles for authentication
+            if member.role in ['admin', 'supervisor']:
+                # Generate JWT token with user's role and id
+                access_token = create_access_token(identity={"id": member.id, "role": member.role})
+                return {"access_token": access_token}, 200
 
-        return {"error": "Invalid credentials or admin access required"}, 401
+        return {"error": "Invalid credentials or access denied"}, 401
 
 # Add the resource to the API
 auth_api.add_resource(AuthResource, '/login')
