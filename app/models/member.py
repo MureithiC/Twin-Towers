@@ -11,7 +11,7 @@ class Member(db.Model):
     email = db.Column(db.String(100), unique=True, nullable=False)
     role = db.Column(db.String(20), nullable=False, default="member")
     password_hash = db.Column(db.String(128), nullable=False)
-    is_active = db.Column(db.Boolean, default=True)  # Soft delete field
+    is_active = db.Column(db.Boolean, default=True)  
     
     def to_dict(self):
         return {
