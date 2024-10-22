@@ -13,14 +13,31 @@ member_api = Api(member_bp)
 class MemberListResource(Resource):
     @jwt_required()
     def get(self):
-        """ List all active members for Admins and Supervisors """
+        """ List all active members for Admins and Supervisors with pagination """
         current_user = get_jwt_identity()
         
+        # Only allow access for admin or supervisor roles
         if current_user['role'] not in ['admin', 'supervisor']:
             return {"error": "Unauthorized"}, 403
 
-        members = Member.query.filter_by(is_active=True).all()
-        return [member.to_dict() for member in members], 200
+        # Pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+
+        # Query active members
+        query = Member.query.filter_by(is_active=True)
+        paginated_members = query.paginate(page=page, per_page=per_page, error_out=False)
+        
+        # Serialize the members into a list of dictionaries
+        members = [member.to_dict() for member in paginated_members.items]
+
+        return {
+            "members": members,
+            "total": paginated_members.total,
+            "pages": paginated_members.pages,
+            "current_page": paginated_members.page
+        }, 200
+
 
 class MemberResource(Resource):
     @jwt_required()
