@@ -20,8 +20,10 @@ def create_app():
     # Import and register the blueprints
     from app.routes.auth_routes import auth_bp
     from app.routes.member_routes import member_bp
+    from app.routes.job_application_routes import job_application_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(member_bp, url_prefix='/members')
-
+    app.register_blueprint(job_application_bp, url_prefix='/applications')
+    
     return app
